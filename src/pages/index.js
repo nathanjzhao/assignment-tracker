@@ -1,115 +1,487 @@
-import Image from "next/image";
-import localFont from "next/font/local";
-
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
-});
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
-});
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { parseISO, format, isValid } from 'date-fns'
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { AssignmentForm } from '@/components/AssignmentForm'
+import Cookies from 'js-cookie'
+import axios from 'axios'
+import { useToast } from "@/hooks/use-toast"
 
 export default function Home() {
-  return (
-    <div
-      className={`${geistSans.variable} ${geistMono.variable} grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]`}
-    >
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/pages/index.js
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const { toast } = useToast()
+  const [assignments, setAssignments] = useState([])
+  const [history, setHistory] = useState([])
+  const [historyIndex, setHistoryIndex] = useState(-1)
+  const [showForm, setShowForm] = useState(false)
+  const [editingIndex, setEditingIndex] = useState(null)
+  const [classes, setClasses] = useState([])
+  const [classColors, setClassColors] = useState({})
+  const [courseInput, setCourseInput] = useState('')
+  const fileInputRef = useRef(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const dragCounter = useRef(0)
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    const storedAssignments = Cookies.get('assignments')
+    if (storedAssignments) {
+      try {
+        const parsedAssignments = JSON.parse(storedAssignments)
+        setAssignments(parsedAssignments)
+        setHistory([parsedAssignments])
+        setHistoryIndex(0)
+        updateClasses(parsedAssignments)
+      } catch (error) {
+        console.error('Error parsing stored assignments:', error)
+        Cookies.remove('assignments')
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (assignments.length > 0) {
+      if (history.length === 0 || !arraysEqual(assignments, history[historyIndex])) {
+        updateHistory(assignments)
+        Cookies.set('assignments', JSON.stringify(assignments), { expires: 365 })
+        updateClasses(assignments)
+      }
+    } else {
+      Cookies.remove('assignments')
+    }
+  }, [assignments, history, historyIndex])
+
+  const updateHistory = (newAssignments) => {
+    setHistory(prevHistory => {
+      const newHistory = [...prevHistory.slice(0, historyIndex + 1), newAssignments]
+      setHistoryIndex(newHistory.length - 1)
+      return newHistory
+    })
+  }
+
+  const undo = () => {
+    if (historyIndex > 0) {
+      setHistoryIndex(prevIndex => prevIndex - 1)
+      setAssignments(history[historyIndex - 1])
+    }
+  }
+
+  const redo = () => {
+    if (historyIndex < history.length - 1) {
+      setHistoryIndex(prevIndex => prevIndex + 1)
+      setAssignments(history[historyIndex + 1])
+    }
+  }
+
+  const updateClasses = useCallback((currentAssignments) => {
+    const uniqueClasses = [...new Set(currentAssignments.map(a => a.classId))]
+    setClasses(uniqueClasses)
+    
+    const newColors = {}
+    uniqueClasses.forEach((classId, index) => {
+      if (!classColors[classId]) {
+        newColors[classId] = generateColor(index, uniqueClasses.length)
+      }
+    })
+    setClassColors(prevColors => ({ ...prevColors, ...newColors }))
+  }, [classColors])
+
+  const generateColor = (index, total) => {
+    const hue = (index / total) * 360
+    return `hsl(${hue}, 70%, 30%)`
+  }
+
+  const handleComplete = (index) => {
+    setAssignments(prevAssignments => {
+      const updatedAssignments = prevAssignments.map((assignment, i) => {
+        if (i === index) {
+          return { ...assignment, complete: !assignment.complete }
+        }
+        return assignment
+      })
+      return updatedAssignments
+    })
+  }
+
+  const handleClassChange = (index, value) => {
+    setAssignments(prevAssignments => {
+      const updatedAssignments = prevAssignments.map((assignment, i) => {
+        if (i === index) {
+          return { ...assignment, classId: value }
+        }
+        return assignment
+      })
+      return updatedAssignments
+    })
+  }
+
+  const handleAddAssignment = (newAssignment) => {
+    setAssignments(prevAssignments => [...prevAssignments, newAssignment])
+    setShowForm(false)
+  }
+
+  const handleEditAssignment = (updatedAssignment) => {
+    if (editingIndex !== null) {
+      setAssignments(prevAssignments => {
+        const updatedAssignments = prevAssignments.map((assignment, index) => 
+          index === editingIndex ? updatedAssignment : assignment
+        )
+        return updatedAssignments
+      })
+      setEditingIndex(null)
+    }
+  }
+
+  const handleDeleteAssignment = (index) => {
+    setAssignments(prevAssignments => prevAssignments.filter((_, i) => i !== index))
+  }
+
+  const handleExtractAssignments = async () => {
+    try {
+      let endpoint, payload;
+      const isUrl = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/.test(courseInput);
+      
+      if (isUrl) {
+        endpoint = '/api/scrape-assignments';
+        payload = { url: courseInput };
+      } else if (fileInputRef.current && fileInputRef.current.files[0]) {
+        endpoint = '/api/extract-from-image';
+        const formData = new FormData();
+        formData.append('image', fileInputRef.current.files[0]);
+        payload = formData;
+      } else {
+        endpoint = '/api/extract-from-text';
+        payload = { text: courseInput };
+      }
+
+      const response = await axios.post(endpoint, payload, {
+        headers: {
+          'Content-Type': fileInputRef.current && fileInputRef.current.files[0] ? 'multipart/form-data' : 'application/json',
+        },
+      });
+      const extractedAssignments = response.data;
+
+      if (extractedAssignments.length === 0) {
+        toast({
+          title: "No Assignments Found",
+          description: "No assignments were found in the provided input.",
+          duration: 3000,
+        });
+        return;
+      }
+      
+      setAssignments(prevAssignments => {
+        const updatedAssignments = prevAssignments.map(existing => {
+          const extracted = extractedAssignments.find(
+            s => s.assignmentName.toLowerCase() === existing.assignmentName.toLowerCase()
+          );
+          return extracted ? { ...existing, ...extracted, classId: extracted.classId.replace(/(\w+)(\d+)/, '$1 $2') } : existing;
+        });
+
+        extractedAssignments.forEach(extracted => {
+          if (!updatedAssignments.some(a => a.assignmentName.toLowerCase() === extracted.assignmentName.toLowerCase())) {
+            updatedAssignments.push({
+              ...extracted,
+              classId: extracted.classId,
+              complete: false,
+              status: 0,
+              timeNeeded: 0
+            });
+          }
+        });
+
+        return updatedAssignments;
+      });
+
+      setCourseInput('');
+      toast({
+        title: "Assignments Extracted",
+        description: `${extractedAssignments.length} assignments added or updated.`,
+        duration: 3000,
+      });
+
+      setShowForm(false);
+    } catch (error) {
+      console.error('Failed to extract assignments:', error);
+      toast({
+        title: "Error",
+        description: "Failed to extract assignments. Please try again.",
+        variant: "destructive",
+        duration: 3000,
+      });
+    }
+  }
+
+  const formatDate = (dateString) => {
+    if (dateString === 'TBD') return 'TBD';
+    const date = parseISO(dateString);
+    return isValid(date) ? format(date, 'MM/dd/yyyy') : 'Invalid Date';
+  }
+
+  const handleDrag = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const handleDragIn = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounter.current++
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true)
+    }
+  }
+
+  const handleDragOut = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounter.current--
+    if (dragCounter.current === 0) {
+      setIsDragging(false)
+    }
+  }
+
+  const handleDrop = async (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+    dragCounter.current = 0
+
+    const files = e.dataTransfer.files
+    if (files && files[0]) {
+      await handleFileUpload(files[0])
+    }
+  }
+
+  const handleFileUpload = async (file) => {
+    try {
+      const formData = new FormData()
+      formData.append('image', file)
+
+      const response = await axios.post('/api/extract-from-image', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      })
+
+      const extractedAssignments = response.data
+      if (extractedAssignments.length === 0) {
+        toast({
+          title: "No Assignments Found",
+          description: "No assignments were found in the provided image.",
+          duration: 3000,
+        });
+        return;
+      }
+      
+      setAssignments(prevAssignments => {
+        const updatedAssignments = prevAssignments.map(existing => {
+          const extracted = extractedAssignments.find(
+            s => s.assignmentName.toLowerCase() === existing.assignmentName.toLowerCase()
+          );
+          return extracted ? { ...existing, ...extracted, classId: extracted.classId.replace(/(\w+)(\d+)/, '$1 $2') } : existing;
+        });
+
+        extractedAssignments.forEach(extracted => {
+          if (!updatedAssignments.some(a => a.assignmentName.toLowerCase() === extracted.assignmentName.toLowerCase())) {
+            updatedAssignments.push({
+              ...extracted,
+              classId: extracted.classId,
+              complete: false,
+              status: 0,
+              timeNeeded: 0
+            });
+          }
+        });
+
+        return updatedAssignments;
+      });
+
+      toast({
+        title: "Assignments Extracted",
+        description: `${extractedAssignments.length} assignments added or updated.`,
+        duration: 3000,
+      })
+    } catch (error) {
+      console.error('Failed to extract assignments from image:', error)
+      toast({
+        title: "Error",
+        description: "Failed to extract assignments from image. Please try again.",
+        variant: "destructive",
+        duration: 3000,
+      })
+    }
+  }
+
+  useEffect(() => {
+    const div = document.getElementById('drag-file-element')
+    div.addEventListener('dragenter', handleDragIn)
+    div.addEventListener('dragleave', handleDragOut)
+    div.addEventListener('dragover', handleDrag)
+    div.addEventListener('drop', handleDrop)
+
+    return () => {
+      div.removeEventListener('dragenter', handleDragIn)
+      div.removeEventListener('dragleave', handleDragOut)
+      div.removeEventListener('dragover', handleDrag)
+      div.removeEventListener('drop', handleDrop)
+    }
+  }, [])
+
+  const handleKeyDown = useCallback((e) => {
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === 'z' && e.shiftKey) {
+        redo()
+      } else if (e.key === 'z') {
+        undo()
+      }
+    }
+  }, [historyIndex])
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [handleKeyDown])
+
+  // Helper function to compare arrays
+  const arraysEqual = (a, b) => 
+    a.length === b.length && a.every((v, i) => JSON.stringify(v) === JSON.stringify(b[i]))
+
+  const sortedAssignments = assignments.sort((a, b) => {
+    if (a.complete && b.complete) {
+      // Sort by start date if both are completed
+      return new Date(a.startDate) - new Date(b.startDate);
+    } else if (!a.complete && !b.complete) {
+      // Sort by end date if both are not completed
+      return new Date(a.dueDate) - new Date(b.dueDate);
+    } else {
+      // Completed assignments go to the bottom
+      return a.complete ? 1 : -1;
+    }
+  });
+
+  const handleClearAssignments = () => {
+    setAssignments([]);
+    setHistory([]);
+    setHistoryIndex(-1);
+    Cookies.remove('assignments');
+  }
+
+  return (
+    <div 
+      id="drag-file-element"
+      className={`container mx-auto py-10 min-h-screen ${isDragging ? 'bg-gray-200' : ''}`}
+    >
+      {isDragging && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-8 rounded-lg">
+            <p className="text-xl font-bold">Drop your image here</p>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+      )}
+      <div className="mb-4 flex space-x-2">
+        <Input 
+          value={courseInput} 
+          onChange={(e) => setCourseInput(e.target.value)} 
+          placeholder="Enter URL or raw text" 
+        />
+        <input
+          type="file"
+          accept="image/*"
+          ref={fileInputRef}
+          style={{ display: 'none' }}
+          onChange={() => setCourseInput('')}
+        />
+        <Button onClick={() => fileInputRef.current.click()}>Upload Image</Button>
+        <Button onClick={handleExtractAssignments}>Extract Assignments</Button>
+      </div>
+      <Button onClick={() => setShowForm(true)} className="mb-4">Add Assignment</Button>
+      {showForm && (
+        <div className="mb-4">
+          <AssignmentForm 
+            onSubmit={handleAddAssignment} 
+            onCancel={() => setShowForm(false)}
+            classes={classes}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
+        </div>
+      )}
+      {editingIndex !== null && (
+        <div className="mb-4">
+          <AssignmentForm 
+            onSubmit={handleEditAssignment} 
+            initialData={assignments[editingIndex]}
+            onCancel={() => setEditingIndex(null)}
+            classes={classes}
           />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        </div>
+      )}
+      <div className="mb-4">
+        <Button onClick={undo} disabled={historyIndex === 0} className="mr-2">Undo</Button>
+        <Button onClick={redo} disabled={historyIndex === history.length - 1}>Redo</Button>
+      </div>
+      <Button onClick={handleClearAssignments} variant="destructive" className="mb-4">Clear All Assignments</Button>
+      <Table>
+        <TableCaption>Assignment Tracker</TableCaption>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Due Date</TableHead>
+            <TableHead>Time Needed (min)</TableHead>
+            <TableHead>Class ID</TableHead>
+            <TableHead>Assignment Name</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Complete?</TableHead>
+            <TableHead>Release Date</TableHead>
+            <TableHead>Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {sortedAssignments.map((assignment, index) => (
+            <TableRow 
+              key={index} 
+              style={{ 
+                backgroundColor: assignment.complete ? 'grey' : classColors[assignment.classId], 
+                color: assignment.complete ? 'white' : 'white' // Change text color for better contrast
+              }}
+            >
+              <TableCell className={assignment.complete ? 'line-through' : ''}>
+                {formatDate(assignment.dueDate)}
+              </TableCell>
+              <TableCell>{assignment.timeNeeded}</TableCell>
+              <TableCell>
+                <Select 
+                  value={assignment.classId} 
+                  onValueChange={(value) => handleClassChange(index, value)}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Select Class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((classId) => (
+                      <SelectItem key={classId} value={classId}>{classId}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </TableCell>
+              <TableCell>{assignment.assignmentName}</TableCell>
+              <TableCell>{`${assignment.status}%`}</TableCell>
+              <TableCell>
+                <Checkbox 
+                  checked={assignment.complete} 
+                  onCheckedChange={() => handleComplete(index)}
+                />
+              </TableCell>
+              <TableCell>{formatDate(assignment.releaseDate)}</TableCell>
+              <TableCell>
+                <Button onClick={() => setEditingIndex(index)} className="mr-2">Edit</Button>
+                <Button onClick={() => handleDeleteAssignment(index)} variant="destructive">Delete</Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
-  );
+  )
 }
