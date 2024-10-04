@@ -20,11 +20,11 @@ export default async function handler(req, res) {
         messages: [
           {role: "system", content: "You are a helpful assistant that extracts detailed assignment and exam information from course syllabi or other course-related text."},
           {role: "user", content: `Extract all assignments and exams with their details from the following text. Format the output as a JSON array of objects, each with properties: 
-          - assignmentName: string
+          - assignmentName: string (the formal name of the assignment as listed in the text)
           - dueDate: string (in YYYY-MM-DD format, or 'TBD' if not specified)
           - releaseDate: string (in YYYY-MM-DD format, or 'TBD' if not specified)
           - timeNeeded: number (estimated time needed in minutes, or 0 if not specified)
-          - classId: string (course code or name, or 'Unknown' if not specified. For example, CS 101, EE 16A, or if no class code is available, use the course name.)
+          - classId: string (the formal course code or name, e.g., 'CS 101', 'EE 16A', or class name if not specified). Otherwise, use 'Unknown'.
           - status: number (percentage of completion, default to 0)
           
           If any information is not available, use appropriate default values. \n\nInput text:\n${text}`}

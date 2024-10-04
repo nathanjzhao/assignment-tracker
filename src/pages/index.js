@@ -9,6 +9,7 @@ import { AssignmentForm } from '@/components/AssignmentForm'
 import Cookies from 'js-cookie'
 import axios from 'axios'
 import { useToast } from "@/hooks/use-toast"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
 export default function Home() {
   const { toast } = useToast()
@@ -23,6 +24,7 @@ export default function Home() {
   const fileInputRef = useRef(null)
   const [isDragging, setIsDragging] = useState(false)
   const dragCounter = useRef(0)
+  const [newClass, setNewClass] = useState('')
 
   useEffect(() => {
     const storedAssignments = Cookies.get('assignments')
@@ -68,7 +70,7 @@ export default function Home() {
   }
 
   const redo = () => {
-    if (historyIndex < history.length - 1) {
+    if (historyIndex < history.length - 1 && history.length > 0) {
       setHistoryIndex(prevIndex => prevIndex + 1)
       setAssignments(history[historyIndex + 1])
     }
@@ -76,7 +78,10 @@ export default function Home() {
 
   const updateClasses = useCallback((currentAssignments) => {
     const uniqueClasses = [...new Set(currentAssignments.map(a => a.classId))]
-    setClasses(uniqueClasses)
+    setClasses(prevClasses => {
+      const updatedClasses = [...new Set([...prevClasses, ...uniqueClasses])]
+      return updatedClasses.sort()
+    })
     
     const newColors = {}
     uniqueClasses.forEach((classId, index) => {
@@ -114,6 +119,9 @@ export default function Home() {
       })
       return updatedAssignments
     })
+    if (!classes.includes(value)) {
+      setClasses(prevClasses => [...prevClasses, value].sort())
+    }
   }
 
   const handleAddAssignment = (newAssignment) => {
@@ -370,6 +378,13 @@ export default function Home() {
     Cookies.remove('assignments');
   }
 
+  const handleAddClass = () => {
+    if (newClass && !classes.includes(newClass)) {
+      setClasses(prevClasses => [...prevClasses, newClass].sort())
+      setNewClass('')
+    }
+  }
+
   return (
     <div 
       id="drag-file-element"
@@ -387,6 +402,11 @@ export default function Home() {
           value={courseInput} 
           onChange={(e) => setCourseInput(e.target.value)} 
           placeholder="Enter URL or raw text" 
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              handleExtractAssignments();
+            }
+          }}
         />
         <input
           type="file"
@@ -423,6 +443,29 @@ export default function Home() {
         <Button onClick={redo} disabled={historyIndex === history.length - 1}>Redo</Button>
       </div>
       <Button onClick={handleClearAssignments} variant="destructive" className="mb-4">Clear All Assignments</Button>
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button className="mb-4">Manage Classes</Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Manage Classes</DialogTitle>
+          </DialogHeader>
+          <div className="flex space-x-2 mb-4">
+            <Input 
+              value={newClass} 
+              onChange={(e) => setNewClass(e.target.value)}
+              placeholder="New class name"
+            />
+            <Button onClick={handleAddClass}>Add Class</Button>
+          </div>
+          <ul>
+            {classes.map((classId) => (
+              <li key={classId}>{classId}</li>
+            ))}
+          </ul>
+        </DialogContent>
+      </Dialog>
       <Table>
         <TableCaption>Assignment Tracker</TableCaption>
         <TableHeader>

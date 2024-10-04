@@ -38,11 +38,11 @@ export default async function handler(req, res) {
           {
             role: "user",
             content: `Extract all assignments and exams with their details from this image. Format the output as a JSON array of objects, each with properties: 
-            - assignmentName: string
+            - assignmentName: string (the formal name of the assignment as listed in the text)
             - dueDate: string (in YYYY-MM-DD format, or 'TBD' if not specified)
             - releaseDate: string (in YYYY-MM-DD format, or 'TBD' if not specified)
             - timeNeeded: number (estimated time needed in minutes, or 0 if not specified)
-            - classId: string (course code or name, or 'Unknown' if not specified)
+            - classId: string (the formal course code or name, e.g., 'CS 101', 'EE 16A', or class name if not specified). Otherwise, use 'Unknown'.
             - status: number (percentage of completion, default to 0)
             
             If any information is not available, use appropriate default values. \n\nImage data:\n`,
