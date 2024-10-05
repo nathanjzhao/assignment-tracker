@@ -43,7 +43,7 @@ export default function Home() {
         Cookies.remove('assignments')
       }
     }
-  }, [updateClasses])
+  }, [])
 
   useEffect(() => {
     if (assignments.length > 0) {
@@ -52,7 +52,7 @@ export default function Home() {
     } else {
       Cookies.remove('assignments');
     }
-  }, [assignments, updateClasses]);
+  }, [assignments]);
 
   const updateHistory = (newAssignments) => {
     setHistory(prevHistory => {
@@ -335,7 +335,7 @@ export default function Home() {
       div.removeEventListener('dragover', handleDrag)
       div.removeEventListener('drop', handleDrop)
     }
-  }, [handleDrop, handleDragIn, handleDragOut, handleDrag])
+  }, [])
 
   const handleKeyDown = useCallback((e) => {
     if (e.ctrlKey || e.metaKey) {
@@ -345,7 +345,7 @@ export default function Home() {
         undo()
       }
     }
-  }, [historyIndex, redo, undo])
+  }, [historyIndex])
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown)
@@ -415,7 +415,7 @@ export default function Home() {
           </div>
         </div>
       )}
-      <h2 className="text-2xl font-bold mb-4">Nathan's Assignment Tracker</h2>
+      <h2 className="text-2xl font-bold mb-4">Nathan&apos;s Assignment Tracker</h2>
       <p className="mb-4">Enter a URL, raw text, or upload an image to extract assignments. Or add them manually.</p>
       <div className="mb-4 flex space-x-2">
         <Input 
