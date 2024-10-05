@@ -38,7 +38,7 @@ export default async function handler(req, res) {
           {
             role: "user",
             content: `Extract all assignments and exams with their details from this image. Format the output as a JSON array of objects, each with properties: 
-            - assignmentName: string (the formal name of the assignment as listed in the text)
+            - assignmentName: string (the formal name of the assignment as listed in the image). In title case and not including the class name.
             - dueDate: string (in YYYY-MM-DD format, or 'TBD' if not specified)
             - releaseDate: string (in YYYY-MM-DD format, or 'TBD' if not specified)
             - timeNeeded: number (estimated time needed in minutes, or 0 if not specified)

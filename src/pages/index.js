@@ -18,7 +18,10 @@ export default function Home() {
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [showForm, setShowForm] = useState(false)
   const [editingIndex, setEditingIndex] = useState(null)
-  const [classes, setClasses] = useState([])
+  const [classes, setClasses] = useState(() => {
+    const storedClasses = Cookies.get('classes');
+    return storedClasses ? JSON.parse(storedClasses) : [];
+  });
   const [classColors, setClassColors] = useState({})
   const [courseInput, setCourseInput] = useState('')
   const fileInputRef = useRef(null)
@@ -380,8 +383,26 @@ export default function Home() {
 
   const handleAddClass = () => {
     if (newClass && !classes.includes(newClass)) {
-      setClasses(prevClasses => [...prevClasses, newClass].sort())
-      setNewClass('')
+      const updatedClasses = [...classes, newClass].sort();
+      setClasses(updatedClasses);
+      Cookies.set('classes', JSON.stringify(updatedClasses)); // Store in cookies
+      setNewClass('');
+    }
+  }
+
+  // New function to handle deleting a class
+  const handleDeleteClass = (classId) => {
+    const updatedClasses = classes.filter(c => c !== classId);
+    setClasses(updatedClasses);
+    Cookies.set('classes', JSON.stringify(updatedClasses)); // Update cookies
+  }
+
+  // New function to handle editing a class
+  const handleEditClass = (oldClassId, newClassId) => {
+    if (newClassId && !classes.includes(newClassId)) {
+      const updatedClasses = classes.map(c => (c === oldClassId ? newClassId : c));
+      setClasses(updatedClasses);
+      Cookies.set('classes', JSON.stringify(updatedClasses)); // Update cookies
     }
   }
 
@@ -397,6 +418,8 @@ export default function Home() {
           </div>
         </div>
       )}
+      <h2 className="text-2xl font-bold mb-4">Nathan's Assignment Tracker</h2>
+      <p className="mb-4">Enter a URL, raw text, or upload an image to extract assignments. Or add them manually.</p>
       <div className="mb-4 flex space-x-2">
         <Input 
           value={courseInput} 
@@ -418,7 +441,45 @@ export default function Home() {
         <Button onClick={() => fileInputRef.current.click()}>Upload Image</Button>
         <Button onClick={handleExtractAssignments}>Extract Assignments</Button>
       </div>
-      <Button onClick={() => setShowForm(true)} className="mb-4">Add Assignment</Button>
+      <div className="mb-4 flex justify-between">
+        <div className="flex space-x-2">
+          <Button onClick={handleClearAssignments} variant="destructive">Clear All Assignments</Button>
+          <Button onClick={() => setShowForm(true)}>Add Assignment Manually</Button>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button>Manage Classes</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Manage Classes</DialogTitle>
+              </DialogHeader>
+              <div className="flex space-x-2 mb-4">
+                <Input 
+                  value={newClass} 
+                  onChange={(e) => setNewClass(e.target.value)}
+                  placeholder="New class name"
+                />
+                <Button onClick={handleAddClass}>Add Class</Button>
+              </div>
+              <ul>
+                {classes.map((classId) => (
+                  <li key={classId} className="flex justify-between">
+                    <span>{classId}</span>
+                    <div>
+                      <Button onClick={() => handleEditClass(classId, prompt("Edit class name:", classId))}>Edit</Button>
+                      <Button onClick={() => handleDeleteClass(classId)} variant="destructive">Delete</Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </DialogContent>
+          </Dialog>
+        </div>
+        <div className="flex space-x-2">
+          <Button onClick={undo} disabled={historyIndex === 0} className="mr-2">Undo</Button>
+          <Button onClick={redo} disabled={historyIndex === history.length - 1}>Redo</Button>
+        </div>
+      </div>
       {showForm && (
         <div className="mb-4">
           <AssignmentForm 
@@ -438,34 +499,6 @@ export default function Home() {
           />
         </div>
       )}
-      <div className="mb-4">
-        <Button onClick={undo} disabled={historyIndex === 0} className="mr-2">Undo</Button>
-        <Button onClick={redo} disabled={historyIndex === history.length - 1}>Redo</Button>
-      </div>
-      <Button onClick={handleClearAssignments} variant="destructive" className="mb-4">Clear All Assignments</Button>
-      <Dialog>
-        <DialogTrigger asChild>
-          <Button className="mb-4">Manage Classes</Button>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Manage Classes</DialogTitle>
-          </DialogHeader>
-          <div className="flex space-x-2 mb-4">
-            <Input 
-              value={newClass} 
-              onChange={(e) => setNewClass(e.target.value)}
-              placeholder="New class name"
-            />
-            <Button onClick={handleAddClass}>Add Class</Button>
-          </div>
-          <ul>
-            {classes.map((classId) => (
-              <li key={classId}>{classId}</li>
-            ))}
-          </ul>
-        </DialogContent>
-      </Dialog>
       <Table>
         <TableCaption>Assignment Tracker</TableCaption>
         <TableHeader>
@@ -514,6 +547,7 @@ export default function Home() {
                 <Checkbox 
                   checked={assignment.complete} 
                   onCheckedChange={() => handleComplete(index)}
+                  className="flex items-center justify-center"
                 />
               </TableCell>
               <TableCell>{formatDate(assignment.releaseDate)}</TableCell>
