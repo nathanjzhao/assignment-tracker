@@ -43,7 +43,7 @@ export default function Home() {
         Cookies.remove('assignments')
       }
     }
-  }, [])
+  }, [updateClasses])
 
   useEffect(() => {
     if (assignments.length > 0) {
@@ -52,7 +52,7 @@ export default function Home() {
     } else {
       Cookies.remove('assignments');
     }
-  }, [assignments]);
+  }, [assignments, updateClasses]);
 
   const updateHistory = (newAssignments) => {
     setHistory(prevHistory => {
@@ -335,7 +335,7 @@ export default function Home() {
       div.removeEventListener('dragover', handleDrag)
       div.removeEventListener('drop', handleDrop)
     }
-  }, [])
+  }, [handleDrop, handleDragIn, handleDragOut, handleDrag])
 
   const handleKeyDown = useCallback((e) => {
     if (e.ctrlKey || e.metaKey) {
@@ -345,7 +345,7 @@ export default function Home() {
         undo()
       }
     }
-  }, [historyIndex])
+  }, [historyIndex, redo, undo])
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown)
