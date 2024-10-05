@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 
 export default function Home() {
   const { toast } = useToast()
-  const [assignments, setAssignments] = useState([])
+  const [assignments, setAssignments] = useState([]);
   const [history, setHistory] = useState([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [showForm, setShowForm] = useState(false)
@@ -47,15 +47,12 @@ export default function Home() {
 
   useEffect(() => {
     if (assignments.length > 0) {
-      if (history.length === 0 || !arraysEqual(assignments, history[historyIndex])) {
-        updateHistory(assignments)
-        Cookies.set('assignments', JSON.stringify(assignments), { expires: 365 })
-        updateClasses(assignments)
-      }
+      Cookies.set('assignments', JSON.stringify(assignments), { expires: 365 });
+      updateClasses(assignments);
     } else {
-      Cookies.remove('assignments')
+      Cookies.remove('assignments');
     }
-  }, [assignments, history, historyIndex])
+  }, [assignments]);
 
   const updateHistory = (newAssignments) => {
     setHistory(prevHistory => {
