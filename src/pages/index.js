@@ -28,6 +28,7 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false)
   const dragCounter = useRef(0)
   const [newClass, setNewClass] = useState('')
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const storedAssignments = Cookies.get('assignments')
@@ -146,6 +147,7 @@ export default function Home() {
   }
 
   const handleExtractAssignments = async () => {
+    setIsLoading(true); // Set loading state to true
     try {
       let endpoint, payload;
       const isUrl = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/.test(courseInput);
@@ -218,6 +220,8 @@ export default function Home() {
         variant: "destructive",
         duration: 3000,
       });
+    } finally {
+      setIsLoading(false); // Set loading state to false
     }
   }
 
@@ -263,6 +267,7 @@ export default function Home() {
   }
 
   const handleFileUpload = async (file) => {
+    setIsLoading(true); // Set loading state to true
     try {
       const formData = new FormData()
       formData.append('image', file)
@@ -271,9 +276,9 @@ export default function Home() {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-      })
+      });
 
-      const extractedAssignments = response.data
+      const extractedAssignments = response.data;
       if (extractedAssignments.length === 0) {
         toast({
           title: "No Assignments Found",
@@ -312,13 +317,15 @@ export default function Home() {
         duration: 3000,
       })
     } catch (error) {
-      console.error('Failed to extract assignments from image:', error)
+      console.error('Failed to extract assignments from image:', error);
       toast({
         title: "Error",
         description: "Failed to extract assignments from image. Please try again.",
         variant: "destructive",
         duration: 3000,
-      })
+      });
+    } finally {
+      setIsLoading(false); // Set loading state to false
     }
   }
 
@@ -427,6 +434,7 @@ export default function Home() {
               handleExtractAssignments();
             }
           }}
+          disabled={isLoading} // Disable input while loading
         />
         <input
           type="file"
@@ -434,10 +442,18 @@ export default function Home() {
           ref={fileInputRef}
           style={{ display: 'none' }}
           onChange={() => setCourseInput('')}
+          disabled={isLoading} // Disable file input while loading
         />
-        <Button onClick={() => fileInputRef.current.click()}>Upload Image</Button>
-        <Button onClick={handleExtractAssignments}>Extract Assignments</Button>
+        <Button onClick={() => fileInputRef.current.click()} disabled={isLoading}>Upload Image</Button>
+        <Button onClick={handleExtractAssignments} disabled={isLoading}>
+          {isLoading ? 'Processing...' : 'Extract Assignments'}
+        </Button>
       </div>
+      {isLoading && (
+        <div className="mt-2 text-center text-blue-600">
+          Processing your request... Please wait.
+        </div>
+      )}
       <div className="mb-4 flex justify-between">
         <div className="flex space-x-2">
           <Button onClick={handleClearAssignments} variant="destructive">Clear All Assignments</Button>
@@ -516,7 +532,7 @@ export default function Home() {
               key={index} 
               style={{ 
                 backgroundColor: assignment.complete ? 'grey' : classColors[assignment.classId], 
-                color: assignment.complete ? 'white' : 'white' // Change text color for better contrast
+                color: assignment.complete ? 'white' : 'white'
               }}
             >
               <TableCell className={assignment.complete ? 'line-through' : ''}>
