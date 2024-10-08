@@ -29,6 +29,8 @@ export default function Home() {
   const dragCounter = useRef(0)
   const [newClass, setNewClass] = useState('')
   const [isLoading, setIsLoading] = useState(false);
+  const [sortColumn, setSortColumn] = useState('dueDate');
+  const [sortOrder, setSortOrder] = useState('asc');
 
   useEffect(() => {
     const storedAssignments = Cookies.get('assignments')
@@ -365,17 +367,33 @@ export default function Home() {
   const arraysEqual = (a, b) => 
     a.length === b.length && a.every((v, i) => JSON.stringify(v) === JSON.stringify(b[i]))
 
-  const sortedAssignments = assignments.sort((a, b) => {
-    if (a.complete && b.complete) {
-      // Sort by start date if both are completed
-      return new Date(a.startDate) - new Date(b.startDate);
-    } else if (!a.complete && !b.complete) {
-      // Sort by end date if both are not completed
-      return new Date(a.dueDate) - new Date(b.dueDate);
-    } else {
-      // Completed assignments go to the bottom
+  const sortedAssignments = [...assignments].sort((a, b) => {
+    // Always put completed items at the bottom
+    if (a.complete !== b.complete) {
       return a.complete ? 1 : -1;
     }
+
+    let compareA, compareB;
+
+    switch (sortColumn) {
+      case 'dueDate':
+      case 'releaseDate':
+        compareA = new Date(a[sortColumn]);
+        compareB = new Date(b[sortColumn]);
+        break;
+      case 'timeNeeded':
+      case 'status':
+        compareA = Number(a[sortColumn]);
+        compareB = Number(b[sortColumn]);
+        break;
+      default:
+        compareA = a[sortColumn];
+        compareB = b[sortColumn];
+    }
+
+    if (compareA < compareB) return sortOrder === 'asc' ? -1 : 1;
+    if (compareA > compareB) return sortOrder === 'asc' ? 1 : -1;
+    return 0;
   });
 
   const handleClearAssignments = () => {
@@ -409,6 +427,15 @@ export default function Home() {
       Cookies.set('classes', JSON.stringify(updatedClasses)); // Update cookies
     }
   }
+
+  const handleSort = (column) => {
+    if (column === sortColumn) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortOrder('asc');
+    }
+  };
 
   return (
     <div 
@@ -516,13 +543,22 @@ export default function Home() {
         <TableCaption>Assignment Tracker</TableCaption>
         <TableHeader>
           <TableRow>
-            <TableHead>Due Date</TableHead>
-            <TableHead>Time Needed (min)</TableHead>
-            <TableHead>Class ID</TableHead>
-            <TableHead>Assignment Name</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Complete?</TableHead>
-            <TableHead>Release Date</TableHead>
+            {[
+              { key: 'dueDate', label: 'Due Date' },
+              { key: 'timeNeeded', label: 'Time Needed (min)' },
+              { key: 'classId', label: 'Class ID' },
+              { key: 'assignmentName', label: 'Assignment Name' },
+              { key: 'status', label: 'Status' },
+              { key: 'complete', label: 'Complete?' },
+              { key: 'releaseDate', label: 'Release Date' },
+            ].map(({ key, label }) => (
+              <TableHead key={key} onClick={() => handleSort(key)} className="cursor-pointer">
+                {label}
+                {sortColumn === key && (
+                  <span className="ml-1">{sortOrder === 'asc' ? '▲' : '▼'}</span>
+                )}
+              </TableHead>
+            ))}
             <TableHead>Actions</TableHead>
           </TableRow>
         </TableHeader>
