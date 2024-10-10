@@ -32,6 +32,8 @@ export default async function handler(req, res) {
         const imageBuffer = await fs.readFile(imageFile.filepath);
         const base64Image = imageBuffer.toString('base64');
 
+        const currentYear = new Date().getFullYear();
+        const currentMonth = new Date().getMonth() + 1;
         const chatGPTResponse = await openai.chat.completions.create({
           model: "gpt-4-vision-preview",
           messages: [
@@ -43,7 +45,7 @@ export default async function handler(req, res) {
                   text: `Extract all assignments and exams with their details from this image. Format the output as a JSON array of objects, each with properties:
                   - assignmentName: string (the formal name of the assignment as listed in the image). In title case and not including the class name. If not specified, use "Unnamed Assignment".
                   - dueDate: string (in YYYY-MM-DD format, or 'TBD' if not specified)
-                  - releaseDate: string (in YYYY-MM-DD format, or 'TBD' if not specified)
+                  - releaseDate: string (in YYYY-MM-DD format, or 'TBD' if not specified). If year is not specified, use the closest date to the current month (${currentMonth} ${currentYear}).
                   - timeNeeded: number (estimated time needed in minutes, or 0 if not specified)
                   - classId: string (the formal course code or name, e.g., 'CS 101', 'EE 16A', or class name if not specified). If not found, use 'Unknown'.
                   - status: number (percentage of completion, default to 0)
